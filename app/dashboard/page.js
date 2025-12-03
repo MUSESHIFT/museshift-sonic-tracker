@@ -327,16 +327,29 @@ export default function Dashboard() {
                       </span>
                     </div>
 
+                    {/* Inbound message (what you sent) */}
                     {checkin.feeling && (
-                      <p className="text-green-300 text-sm mb-2 italic">
-                        "{checkin.feeling}"
-                      </p>
+                      <div className="mb-2">
+                        <span className="text-green-600 text-xs">YOU:</span>
+                        <p className="text-green-300 text-sm italic ml-2">
+                          "{checkin.feeling}"
+                        </p>
+                      </div>
                     )}
 
+                    {/* Outbound response (what MuseShift replied) */}
                     {checkin.summary && (
-                      <p className="text-green-500 text-xs mb-2">
-                        {checkin.summary}
-                      </p>
+                      <div className="mb-2 pl-2 border-l-2 border-cyan-400/30">
+                        <span className="text-cyan-600 text-xs">MUSESHIFT:</span>
+                        <p className="text-cyan-400 text-sm ml-2">
+                          {checkin.glyph} {checkin.summary}
+                        </p>
+                        {checkin.suggestedPrompt && (
+                          <p className="text-cyan-300 text-xs ml-2 mt-1 italic">
+                            "{checkin.suggestedPrompt}"
+                          </p>
+                        )}
+                      </div>
                     )}
 
                     <div className="flex flex-wrap gap-2 text-xs">
