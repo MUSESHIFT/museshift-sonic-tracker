@@ -20,15 +20,17 @@ export async function GET() {
       smsActive = true; // If public-state works, n8n is responding
     }
 
-    // Check SMS webhook health
+    // Check SMS webhook health - use POST with empty body since n8n doesn't support HEAD
     let smsStatus = 'unknown';
     try {
       const smsCheck = await fetch(`${webhookUrl}/sms-checkin`, {
-        method: 'HEAD',
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'Body=status_check&From=status_check',
         cache: 'no-store',
       });
-      // If we get any response (even 405), the webhook is registered
-      smsStatus = smsCheck.status === 405 || smsCheck.status === 200 ? 'active' : 'inactive';
+      // If we get XML response (TwiML), the webhook is working
+      smsStatus = smsCheck.ok ? 'active' : 'inactive';
     } catch {
       smsStatus = 'error';
     }

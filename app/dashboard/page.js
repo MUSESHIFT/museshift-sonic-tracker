@@ -330,55 +330,19 @@ export default function Dashboard() {
                     {/* Inbound message (what you sent) */}
                     {checkin.feeling && (
                       <div className="mb-2">
-                        <span className="text-green-600 text-xs">YOU:</span>
-                        <p className="text-green-300 text-sm italic ml-2">
-                          "{checkin.feeling}"
-                        </p>
+                        <span className="text-green-600 text-xs">YOU: </span>
+                        <span className="text-green-300 text-sm italic line-clamp-2">
+                          {checkin.feeling}
+                        </span>
                       </div>
                     )}
 
                     {/* Outbound response (what MuseShift replied) */}
                     {checkin.summary && (
                       <div className="mb-2 pl-2 border-l-2 border-cyan-400/30">
-                        <span className="text-cyan-600 text-xs">MUSESHIFT:</span>
-                        <p className="text-cyan-400 text-sm ml-2">
+                        <span className="text-cyan-600 text-xs">MUSESHIFT: </span>
+                        <span className="text-cyan-400 text-sm line-clamp-2">
                           {checkin.glyph} {checkin.summary}
-                        </p>
-                        {checkin.suggestedPrompt && (
-                          <p className="text-cyan-300 text-xs ml-2 mt-1 italic">
-                            "{checkin.suggestedPrompt}"
-                          </p>
-                        )}
-                      </div>
-                    )}
-
-                    <div className="flex flex-wrap gap-2 text-xs">
-                      {checkin.archetype && (
-                        <span className="text-orange-400">
-                          archetype: {checkin.archetype}
-                        </span>
-                      )}
-                      {checkin.statePhase && (
-                        <span className="text-blue-400">
-                          phase: {checkin.statePhase}
-                        </span>
-                      )}
-                      {checkin.direction && (
-                        <span className="text-yellow-400">
-                          direction: {checkin.direction}
-                        </span>
-                      )}
-                      {checkin.glyph && (
-                        <span className="text-pink-400">
-                          glyph: {checkin.glyph}
-                        </span>
-                      )}
-                    </div>
-
-                    {checkin.intervention && (
-                      <div className="mt-2 pt-2 border-t border-green-400/10">
-                        <span className="text-cyan-400 text-xs">
-                          Suggested: {checkin.intervention}
                         </span>
                       </div>
                     )}
