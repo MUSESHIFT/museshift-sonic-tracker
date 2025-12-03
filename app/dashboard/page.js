@@ -176,6 +176,43 @@ export default function Dashboard() {
           <div>
             <h1 className="text-2xl font-bold tracking-wider">MUSESHIFT_DASHBOARD</h1>
             <p className="text-green-500 text-sm">personal energy patterns</p>
+            {/* Quick Stats Pills */}
+            {airtableCheckins.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-3">
+                <span className="px-2 py-1 bg-cyan-400/20 border border-cyan-400/40 rounded-full text-xs text-cyan-300">
+                  ✧ {airtableCheckins.length} check-ins
+                </span>
+                {airtableCheckins[0]?.detectedState && (
+                  <span
+                    className="px-2 py-1 rounded-full text-xs border"
+                    style={{
+                      backgroundColor: `${getStateColor(airtableCheckins[0].detectedState)}20`,
+                      borderColor: `${getStateColor(airtableCheckins[0].detectedState)}60`,
+                      color: getStateColor(airtableCheckins[0].detectedState)
+                    }}
+                  >
+                    ◐ latest: {airtableCheckins[0].detectedState}
+                  </span>
+                )}
+                {stats?.dominantState && (
+                  <span
+                    className="px-2 py-1 rounded-full text-xs border"
+                    style={{
+                      backgroundColor: `${getStateColor(stats.dominantState)}20`,
+                      borderColor: `${getStateColor(stats.dominantState)}60`,
+                      color: getStateColor(stats.dominantState)
+                    }}
+                  >
+                    ♡ vibe: {stats.dominantState}
+                  </span>
+                )}
+                {airtableCheckins[0]?.timestamp && (
+                  <span className="px-2 py-1 bg-purple-400/20 border border-purple-400/40 rounded-full text-xs text-purple-300">
+                    ⏱ {formatTimeAgo(airtableCheckins[0].timestamp)}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-4">
             {/* System Status Indicators */}
