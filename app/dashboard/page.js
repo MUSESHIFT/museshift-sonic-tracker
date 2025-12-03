@@ -288,63 +288,51 @@ export default function Dashboard() {
         <div className="space-y-6">
           {/* Latest Check-ins (Airtable data) */}
           {activeTab === 'live' && airtableCheckins.length > 0 && (
-            <div className="border border-cyan-400/50 p-4">
+            <div className="border border-cyan-400/50 p-4 rounded">
               <h2 className="text-lg font-bold mb-4 border-b border-cyan-400/30 pb-2 text-cyan-400">
                 LATEST CHECK-INS
               </h2>
-              <div className="space-y-4 max-h-96 overflow-y-auto">
+              <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2">
                 {getFilteredData(airtableCheckins).slice(0, 10).map((checkin, i) => (
                   <div
                     key={checkin.id || i}
-                    className="border border-green-400/20 p-3 bg-black/50"
+                    className="rounded-lg p-3"
+                    style={{
+                      backgroundColor: `${getStateColor(checkin.detectedState)}15`,
+                      borderLeft: `3px solid ${getStateColor(checkin.detectedState)}`
+                    }}
                   >
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex items-center gap-3">
+                    {/* Header row */}
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">{checkin.glyph || '●'}</span>
                         <span
-                          className="px-2 py-1 text-xs font-bold"
-                          style={{
-                            color: getStateColor(checkin.detectedState),
-                            borderColor: getStateColor(checkin.detectedState),
-                            border: '1px solid'
-                          }}
+                          className="text-xs font-bold uppercase"
+                          style={{ color: getStateColor(checkin.detectedState) }}
                         >
                           {checkin.detectedState || 'unknown'}
                         </span>
                         {checkin.emotion && (
-                          <span className="text-purple-400 text-xs">
-                            {checkin.emotion}
-                            {checkin.emotionIntensity && ` (${checkin.emotionIntensity})`}
-                          </span>
-                        )}
-                        {checkin.source && (
-                          <span className="text-green-600 text-xs">
-                            via {checkin.source.replace('_', ' ')}
+                          <span className="text-purple-400/70 text-xs">
+                            · {checkin.emotion}
                           </span>
                         )}
                       </div>
-                      <span className="text-green-600 text-xs">
+                      <span className="text-gray-500 text-xs">
                         {formatTimeAgo(checkin.timestamp)}
                       </span>
                     </div>
 
-                    {/* Inbound message (what you sent) */}
+                    {/* Message content */}
                     {checkin.feeling && (
-                      <div className="mb-2">
-                        <span className="text-green-600 text-xs">YOU: </span>
-                        <span className="text-green-300 text-sm italic line-clamp-2">
-                          {checkin.feeling}
-                        </span>
-                      </div>
+                      <p className="text-gray-300 text-sm mb-1 truncate">
+                        {checkin.feeling}
+                      </p>
                     )}
-
-                    {/* Outbound response (what MuseShift replied) */}
                     {checkin.summary && (
-                      <div className="mb-2 pl-2 border-l-2 border-cyan-400/30">
-                        <span className="text-cyan-600 text-xs">MUSESHIFT: </span>
-                        <span className="text-cyan-400 text-sm line-clamp-2">
-                          {checkin.glyph} {checkin.summary}
-                        </span>
-                      </div>
+                      <p className="text-cyan-400/80 text-xs truncate">
+                        → {checkin.summary}
+                      </p>
                     )}
                   </div>
                 ))}
