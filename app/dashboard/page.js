@@ -11,13 +11,55 @@ const STATE_INFO = {
   clearmark: { color: '#4ade80', label: 'Clearmark', description: 'grounded, present, clear' },
   lowline: { color: '#3b82f6', label: 'Lowline', description: 'low energy, withdrawn, quiet' },
   other_place: { color: '#8b5cf6', label: 'Other Place', description: 'dissociated, elsewhere, floating' },
+  SLICKVEIL: { color: '#a78bfa', label: 'Slickveil', description: 'smooth, controlled, mask on' },
+  VOLTAGE: { color: '#f97316', label: 'Voltage', description: 'high energy, activated, ready' },
+  FRAYMARK: { color: '#ef4444', label: 'Fraymark', description: 'frayed, scattered, dysregulated' },
+  CLEARMARK: { color: '#4ade80', label: 'Clearmark', description: 'grounded, present, clear' },
+  LOWLINE: { color: '#3b82f6', label: 'Lowline', description: 'low energy, withdrawn, quiet' },
+  OTHER_PLACE: { color: '#8b5cf6', label: 'Other Place', description: 'dissociated, elsewhere, floating' },
 };
 
 export default function Dashboard() {
   const [sessions, setSessions] = useState([]);
+  const [airtableCheckins, setAirtableCheckins] = useState([]);
+  const [systemStatus, setSystemStatus] = useState(null);
   const [timeRange, setTimeRange] = useState('today');
   const [stats, setStats] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('live');
 
+  // Fetch system status and Airtable data
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        // Fetch system status
+        const statusRes = await fetch('/api/status');
+        if (statusRes.ok) {
+          const statusData = await statusRes.json();
+          setSystemStatus(statusData);
+        }
+
+        // Fetch Airtable check-ins
+        const checkinsRes = await fetch('/api/checkins?limit=50');
+        if (checkinsRes.ok) {
+          const checkinsData = await checkinsRes.json();
+          setAirtableCheckins(checkinsData.checkins || []);
+        }
+      } catch (e) {
+        console.error('Failed to fetch data:', e);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchData, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Load local sessions from localStorage
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('museshift_sessions');
@@ -28,16 +70,17 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
-    if (sessions.length > 0) {
-      calculateStats();
+    const allData = activeTab === 'live' ? airtableCheckins : sessions;
+    if (allData.length > 0) {
+      calculateStats(allData);
     }
-  }, [sessions, timeRange]);
+  }, [sessions, airtableCheckins, timeRange, activeTab]);
 
-  const getFilteredSessions = () => {
+  const getFilteredData = (data) => {
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-    return sessions.filter(s => {
+    return data.filter(s => {
       const sessionDate = new Date(s.timestamp);
       switch (timeRange) {
         case 'today':
@@ -57,37 +100,27 @@ export default function Dashboard() {
     });
   };
 
-  const calculateStats = () => {
-    const filtered = getFilteredSessions();
+  const calculateStats = (data) => {
+    const filtered = getFilteredData(data);
 
-    // State frequency
+    // State frequency - handle both local and Airtable formats
     const stateCounts = {};
-    const stateTransitions = [];
-    let prevState = null;
-
     filtered.forEach(s => {
-      if (s.detected_state) {
-        stateCounts[s.detected_state] = (stateCounts[s.detected_state] || 0) + 1;
-
-        if (prevState && s.target_state) {
-          stateTransitions.push({
-            from: prevState,
-            to: s.target_state,
-            timestamp: s.timestamp
-          });
-        }
-        prevState = s.detected_state;
+      const state = s.detected_state || s.detectedState;
+      if (state) {
+        const normalized = state.toLowerCase();
+        stateCounts[normalized] = (stateCounts[normalized] || 0) + 1;
       }
     });
 
-    // Playlist stats
-    const playlists = filtered.filter(s => s.playlist_generated);
-    const avgDuration = playlists.length > 0
-      ? playlists.reduce((sum, p) => sum + (p.duration || 0), 0) / playlists.length
-      : 0;
-    const avgDiscovery = playlists.length > 0
-      ? playlists.reduce((sum, p) => sum + (p.discovery || 0), 0) / playlists.length
-      : 0;
+    // Emotion frequency
+    const emotionCounts = {};
+    filtered.forEach(s => {
+      const emotion = s.emotion || s.detected_emotion;
+      if (emotion) {
+        emotionCounts[emotion] = (emotionCounts[emotion] || 0) + 1;
+      }
+    });
 
     // Time of day analysis
     const hourCounts = {};
@@ -100,51 +133,13 @@ export default function Dashboard() {
     const mostCommon = Object.entries(stateCounts)
       .sort((a, b) => b[1] - a[1])[0];
 
-    // Daily breakdown for week/month view
-    const dailyBreakdown = {};
-    filtered.forEach(s => {
-      const day = new Date(s.timestamp).toLocaleDateString();
-      if (!dailyBreakdown[day]) {
-        dailyBreakdown[day] = { states: [], playlists: 0 };
-      }
-      if (s.detected_state) {
-        dailyBreakdown[day].states.push(s.detected_state);
-      }
-      if (s.playlist_generated) {
-        dailyBreakdown[day].playlists++;
-      }
-    });
-
     setStats({
-      totalCheckins: filtered.filter(s => s.detected_state).length,
-      totalPlaylists: playlists.length,
+      totalCheckins: filtered.length,
       stateCounts,
+      emotionCounts,
       mostCommonState: mostCommon ? mostCommon[0] : null,
-      avgDuration: Math.round(avgDuration),
-      avgDiscovery: Math.round(avgDiscovery),
       hourCounts,
-      stateTransitions,
-      dailyBreakdown
     });
-  };
-
-  const clearData = () => {
-    if (confirm('Clear all session data? This cannot be undone.')) {
-      localStorage.removeItem('museshift_sessions');
-      setSessions([]);
-      setStats(null);
-    }
-  };
-
-  const exportData = () => {
-    const dataStr = JSON.stringify(sessions, null, 2);
-    const blob = new Blob([dataStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `museshift-data-${new Date().toISOString().split('T')[0]}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
   };
 
   const formatHour = (hour) => {
@@ -153,22 +148,112 @@ export default function Dashboard() {
     return `${h}${ampm}`;
   };
 
+  const formatTimeAgo = (timestamp) => {
+    const now = new Date();
+    const then = new Date(timestamp);
+    const diffMs = now - then;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return 'just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    return `${diffDays}d ago`;
+  };
+
+  const getStateColor = (state) => {
+    if (!state) return '#4ade80';
+    const info = STATE_INFO[state] || STATE_INFO[state.toLowerCase()] || STATE_INFO[state.toUpperCase()];
+    return info?.color || '#4ade80';
+  };
+
   return (
     <div className="min-h-screen bg-black text-green-400 p-4">
-      {/* Header */}
+      {/* Header with Status */}
       <div className="border-2 border-green-400 p-4 mb-6">
-        <div className="flex justify-between items-center">
+        <div className="flex justify-between items-start">
           <div>
             <h1 className="text-2xl font-bold tracking-wider">MUSESHIFT_DASHBOARD</h1>
             <p className="text-green-500 text-sm">personal energy patterns</p>
           </div>
-          <Link
-            href="/"
-            className="text-cyan-400 hover:text-cyan-300 border border-cyan-400 px-4 py-2 hover:bg-cyan-400/10"
-          >
-            ← back to terminal
-          </Link>
+          <div className="flex items-center gap-4">
+            {/* System Status Indicators */}
+            <div className="text-xs space-y-1 text-right">
+              <div className="flex items-center gap-2 justify-end">
+                <span className="text-green-600">n8n:</span>
+                <span className={systemStatus?.n8n?.status === 'connected' ? 'text-green-400' : 'text-red-400'}>
+                  {systemStatus?.n8n?.status === 'connected' ? '● ONLINE' : '○ OFFLINE'}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 justify-end">
+                <span className="text-green-600">SMS:</span>
+                <span className={systemStatus?.n8n?.smsWorkflow === 'active' ? 'text-green-400' : 'text-yellow-400'}>
+                  {systemStatus?.n8n?.smsWorkflow === 'active' ? '● ACTIVE' : '○ CHECK'}
+                </span>
+              </div>
+            </div>
+            <div className="flex flex-col gap-1">
+              <Link
+                href="/"
+                className="text-cyan-400 hover:text-cyan-300 border border-cyan-400 px-4 py-1 hover:bg-cyan-400/10 text-sm"
+              >
+                ← terminal
+              </Link>
+              <Link
+                href="/nca"
+                className="text-purple-400 hover:text-purple-300 border border-purple-400 px-4 py-1 hover:bg-purple-400/10 text-sm"
+              >
+                NCA tools
+              </Link>
+            </div>
+          </div>
         </div>
+
+        {/* Current State Display */}
+        {systemStatus?.currentState && (
+          <div className="mt-4 pt-4 border-t border-green-400/30">
+            <div className="flex items-center gap-4">
+              <span className="text-green-600 text-sm">CURRENT STATE:</span>
+              <span
+                className="text-xl font-bold"
+                style={{ color: getStateColor(systemStatus.currentState.state) }}
+              >
+                {systemStatus.currentState.state}
+              </span>
+              <span className="text-green-500 text-sm">
+                {systemStatus.currentState.phase}
+              </span>
+            </div>
+            <p className="text-green-600 text-sm mt-1 italic">
+              "{systemStatus.currentState.essence}"
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Data Source Toggle */}
+      <div className="flex gap-2 mb-4">
+        <button
+          onClick={() => setActiveTab('live')}
+          className={`px-4 py-2 border transition-colors ${
+            activeTab === 'live'
+              ? 'border-cyan-400 bg-cyan-400 text-black'
+              : 'border-cyan-400/50 text-cyan-400/70 hover:border-cyan-400'
+          }`}
+        >
+          LIVE (SMS/Voice)
+        </button>
+        <button
+          onClick={() => setActiveTab('local')}
+          className={`px-4 py-2 border transition-colors ${
+            activeTab === 'local'
+              ? 'border-green-400 bg-green-400 text-black'
+              : 'border-green-400/50 text-green-400/70 hover:border-green-400'
+          }`}
+        >
+          LOCAL (Web App)
+        </button>
       </div>
 
       {/* Time range selector */}
@@ -186,170 +271,264 @@ export default function Dashboard() {
             {range.toUpperCase()}
           </button>
         ))}
+        {loading && <span className="text-yellow-400 animate-pulse ml-4 self-center">loading...</span>}
       </div>
 
-      {!stats || stats.totalCheckins === 0 ? (
+      {(!stats || stats.totalCheckins === 0) && !loading ? (
         <div className="border border-green-400/30 p-8 text-center">
           <p className="text-green-500 text-lg mb-4">No data for this time range</p>
-          <p className="text-green-600 text-sm">Start tracking your states on the main terminal</p>
+          <p className="text-green-600 text-sm">
+            {activeTab === 'live'
+              ? 'Send a text or voice memo to your MuseShift number'
+              : 'Start tracking your states on the main terminal'
+            }
+          </p>
         </div>
       ) : (
         <div className="space-y-6">
-          {/* Overview Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="border border-green-400/50 p-4">
-              <div className="text-3xl font-bold">{stats.totalCheckins}</div>
-              <div className="text-green-500 text-sm">state checks</div>
-            </div>
-            <div className="border border-green-400/50 p-4">
-              <div className="text-3xl font-bold">{stats.totalPlaylists}</div>
-              <div className="text-green-500 text-sm">playlists generated</div>
-            </div>
-            <div className="border border-green-400/50 p-4">
-              <div className="text-3xl font-bold">{stats.avgDuration || '—'}</div>
-              <div className="text-green-500 text-sm">avg duration (min)</div>
-            </div>
-            <div className="border border-green-400/50 p-4">
-              <div className="text-3xl font-bold">{stats.avgDiscovery || '—'}%</div>
-              <div className="text-green-500 text-sm">avg discovery</div>
-            </div>
-          </div>
-
-          {/* State Distribution */}
-          <div className="border border-green-400/50 p-4">
-            <h2 className="text-lg font-bold mb-4 border-b border-green-400/30 pb-2">STATE DISTRIBUTION</h2>
-            <div className="space-y-3">
-              {Object.entries(stats.stateCounts)
-                .sort((a, b) => b[1] - a[1])
-                .map(([state, count]) => {
-                  const info = STATE_INFO[state] || { color: '#4ade80', label: state };
-                  const percentage = Math.round((count / stats.totalCheckins) * 100);
-                  return (
-                    <div key={state} className="flex items-center gap-4">
-                      <div className="w-24 text-sm" style={{ color: info.color }}>
-                        {info.label}
-                      </div>
-                      <div className="flex-1 h-6 bg-green-400/10 relative">
-                        <div
-                          className="h-full transition-all"
-                          style={{
-                            width: `${percentage}%`,
-                            backgroundColor: info.color
-                          }}
-                        />
-                        <span className="absolute right-2 top-0 text-xs text-black mix-blend-difference">
-                          {count} ({percentage}%)
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-            </div>
-          </div>
-
-          {/* Time of Day Pattern */}
-          <div className="border border-green-400/50 p-4">
-            <h2 className="text-lg font-bold mb-4 border-b border-green-400/30 pb-2">ACTIVITY BY HOUR</h2>
-            <div className="flex items-end gap-1 h-32">
-              {Array.from({ length: 24 }, (_, i) => {
-                const count = stats.hourCounts[i] || 0;
-                const maxCount = Math.max(...Object.values(stats.hourCounts), 1);
-                const height = (count / maxCount) * 100;
-                return (
-                  <div key={i} className="flex-1 flex flex-col items-center">
-                    <div
-                      className="w-full bg-green-400 transition-all hover:bg-green-300"
-                      style={{ height: `${height}%`, minHeight: count > 0 ? '4px' : '0' }}
-                      title={`${formatHour(i)}: ${count} sessions`}
-                    />
-                    {i % 4 === 0 && (
-                      <span className="text-[10px] text-green-600 mt-1">{formatHour(i)}</span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Recent Sessions */}
-          <div className="border border-green-400/50 p-4">
-            <h2 className="text-lg font-bold mb-4 border-b border-green-400/30 pb-2">RECENT SESSIONS</h2>
-            <div className="space-y-2 max-h-64 overflow-y-auto">
-              {getFilteredSessions()
-                .slice(-20)
-                .reverse()
-                .map((session, i) => {
-                  const stateInfo = STATE_INFO[session.detected_state];
-                  return (
-                    <div key={i} className="flex items-center gap-4 text-sm border-b border-green-400/10 pb-2">
-                      <span className="text-green-600 w-32">
-                        {new Date(session.timestamp).toLocaleString()}
-                      </span>
-                      {session.detected_state && (
+          {/* Latest Check-ins (Airtable data) */}
+          {activeTab === 'live' && airtableCheckins.length > 0 && (
+            <div className="border border-cyan-400/50 p-4">
+              <h2 className="text-lg font-bold mb-4 border-b border-cyan-400/30 pb-2 text-cyan-400">
+                LATEST CHECK-INS
+              </h2>
+              <div className="space-y-4 max-h-96 overflow-y-auto">
+                {getFilteredData(airtableCheckins).slice(0, 10).map((checkin, i) => (
+                  <div
+                    key={checkin.id || i}
+                    className="border border-green-400/20 p-3 bg-black/50"
+                  >
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex items-center gap-3">
                         <span
-                          className="px-2 py-1 text-xs"
+                          className="px-2 py-1 text-xs font-bold"
                           style={{
-                            color: stateInfo?.color || '#4ade80',
-                            borderColor: stateInfo?.color || '#4ade80',
+                            color: getStateColor(checkin.detectedState),
+                            borderColor: getStateColor(checkin.detectedState),
                             border: '1px solid'
                           }}
                         >
-                          {session.detected_state}
+                          {checkin.detectedState || 'unknown'}
+                        </span>
+                        {checkin.emotion && (
+                          <span className="text-purple-400 text-xs">
+                            {checkin.emotion}
+                            {checkin.emotionIntensity && ` (${checkin.emotionIntensity})`}
+                          </span>
+                        )}
+                        {checkin.source && (
+                          <span className="text-green-600 text-xs">
+                            via {checkin.source.replace('_', ' ')}
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-green-600 text-xs">
+                        {formatTimeAgo(checkin.timestamp)}
+                      </span>
+                    </div>
+
+                    {checkin.feeling && (
+                      <p className="text-green-300 text-sm mb-2 italic">
+                        "{checkin.feeling}"
+                      </p>
+                    )}
+
+                    {checkin.summary && (
+                      <p className="text-green-500 text-xs mb-2">
+                        {checkin.summary}
+                      </p>
+                    )}
+
+                    <div className="flex flex-wrap gap-2 text-xs">
+                      {checkin.archetype && (
+                        <span className="text-orange-400">
+                          archetype: {checkin.archetype}
                         </span>
                       )}
-                      {session.target_state && (
-                        <>
-                          <span className="text-green-600">→</span>
-                          <span
-                            className="text-xs"
-                            style={{ color: STATE_INFO[session.target_state]?.color }}
-                          >
-                            {session.target_state}
-                          </span>
-                        </>
+                      {checkin.statePhase && (
+                        <span className="text-blue-400">
+                          phase: {checkin.statePhase}
+                        </span>
                       )}
-                      {session.playlist_generated && (
-                        <span className="text-cyan-400 text-xs">🎵 playlist</span>
+                      {checkin.direction && (
+                        <span className="text-yellow-400">
+                          direction: {checkin.direction}
+                        </span>
+                      )}
+                      {checkin.glyph && (
+                        <span className="text-pink-400">
+                          glyph: {checkin.glyph}
+                        </span>
                       )}
                     </div>
-                  );
-                })}
-            </div>
-          </div>
 
-          {/* Most Common State */}
-          {stats.mostCommonState && (
-            <div className="border border-green-400/50 p-4">
-              <h2 className="text-lg font-bold mb-2">DOMINANT STATE</h2>
-              <div className="flex items-center gap-4">
-                <span
-                  className="text-3xl font-bold"
-                  style={{ color: STATE_INFO[stats.mostCommonState]?.color }}
-                >
-                  {STATE_INFO[stats.mostCommonState]?.label || stats.mostCommonState}
-                </span>
-                <span className="text-green-500 text-sm">
-                  {STATE_INFO[stats.mostCommonState]?.description}
-                </span>
+                    {checkin.intervention && (
+                      <div className="mt-2 pt-2 border-t border-green-400/10">
+                        <span className="text-cyan-400 text-xs">
+                          Suggested: {checkin.intervention}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
             </div>
           )}
 
-          {/* Data Management */}
-          <div className="border border-green-400/30 p-4 flex gap-4">
-            <button
-              onClick={exportData}
-              className="px-4 py-2 border border-cyan-400 text-cyan-400 hover:bg-cyan-400/10 text-sm"
-            >
-              EXPORT DATA (JSON)
-            </button>
-            <button
-              onClick={clearData}
-              className="px-4 py-2 border border-red-400 text-red-400 hover:bg-red-400/10 text-sm"
-            >
-              CLEAR ALL DATA
-            </button>
-          </div>
+          {/* Overview Stats */}
+          {stats && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="border border-green-400/50 p-4">
+                <div className="text-3xl font-bold">{stats.totalCheckins}</div>
+                <div className="text-green-500 text-sm">check-ins</div>
+              </div>
+              <div className="border border-green-400/50 p-4">
+                <div className="text-3xl font-bold">{Object.keys(stats.stateCounts).length}</div>
+                <div className="text-green-500 text-sm">states visited</div>
+              </div>
+              <div className="border border-green-400/50 p-4">
+                <div className="text-3xl font-bold">{Object.keys(stats.emotionCounts || {}).length}</div>
+                <div className="text-green-500 text-sm">emotions detected</div>
+              </div>
+              <div className="border border-green-400/50 p-4">
+                <div
+                  className="text-xl font-bold capitalize"
+                  style={{ color: getStateColor(stats.mostCommonState) }}
+                >
+                  {stats.mostCommonState || '—'}
+                </div>
+                <div className="text-green-500 text-sm">dominant state</div>
+              </div>
+            </div>
+          )}
+
+          {/* State Distribution */}
+          {stats && Object.keys(stats.stateCounts).length > 0 && (
+            <div className="border border-green-400/50 p-4">
+              <h2 className="text-lg font-bold mb-4 border-b border-green-400/30 pb-2">STATE DISTRIBUTION</h2>
+              <div className="space-y-3">
+                {Object.entries(stats.stateCounts)
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([state, count]) => {
+                    const percentage = Math.round((count / stats.totalCheckins) * 100);
+                    return (
+                      <div key={state} className="flex items-center gap-4">
+                        <div className="w-24 text-sm capitalize" style={{ color: getStateColor(state) }}>
+                          {state}
+                        </div>
+                        <div className="flex-1 h-6 bg-green-400/10 relative">
+                          <div
+                            className="h-full transition-all"
+                            style={{
+                              width: `${percentage}%`,
+                              backgroundColor: getStateColor(state)
+                            }}
+                          />
+                          <span className="absolute right-2 top-0 text-xs text-black mix-blend-difference">
+                            {count} ({percentage}%)
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
+
+          {/* Emotion Distribution */}
+          {stats && stats.emotionCounts && Object.keys(stats.emotionCounts).length > 0 && (
+            <div className="border border-purple-400/50 p-4">
+              <h2 className="text-lg font-bold mb-4 border-b border-purple-400/30 pb-2 text-purple-400">
+                EMOTION DISTRIBUTION
+              </h2>
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(stats.emotionCounts)
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([emotion, count]) => (
+                    <span
+                      key={emotion}
+                      className="px-3 py-1 border border-purple-400/50 text-purple-300 text-sm"
+                    >
+                      {emotion} ({count})
+                    </span>
+                  ))}
+              </div>
+            </div>
+          )}
+
+          {/* Time of Day Pattern */}
+          {stats && Object.keys(stats.hourCounts).length > 0 && (
+            <div className="border border-green-400/50 p-4">
+              <h2 className="text-lg font-bold mb-4 border-b border-green-400/30 pb-2">ACTIVITY BY HOUR</h2>
+              <div className="flex items-end gap-1 h-32">
+                {Array.from({ length: 24 }, (_, i) => {
+                  const count = stats.hourCounts[i] || 0;
+                  const maxCount = Math.max(...Object.values(stats.hourCounts), 1);
+                  const height = (count / maxCount) * 100;
+                  return (
+                    <div key={i} className="flex-1 flex flex-col items-center">
+                      <div
+                        className="w-full bg-green-400 transition-all hover:bg-green-300"
+                        style={{ height: `${height}%`, minHeight: count > 0 ? '4px' : '0' }}
+                        title={`${formatHour(i)}: ${count} sessions`}
+                      />
+                      {i % 4 === 0 && (
+                        <span className="text-[10px] text-green-600 mt-1">{formatHour(i)}</span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Local session history (only show when on local tab) */}
+          {activeTab === 'local' && sessions.length > 0 && (
+            <div className="border border-green-400/50 p-4">
+              <h2 className="text-lg font-bold mb-4 border-b border-green-400/30 pb-2">LOCAL SESSIONS</h2>
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {getFilteredData(sessions)
+                  .slice(-20)
+                  .reverse()
+                  .map((session, i) => {
+                    const stateInfo = STATE_INFO[session.detected_state];
+                    return (
+                      <div key={i} className="flex items-center gap-4 text-sm border-b border-green-400/10 pb-2">
+                        <span className="text-green-600 w-32">
+                          {new Date(session.timestamp).toLocaleString()}
+                        </span>
+                        {session.detected_state && (
+                          <span
+                            className="px-2 py-1 text-xs"
+                            style={{
+                              color: stateInfo?.color || '#4ade80',
+                              borderColor: stateInfo?.color || '#4ade80',
+                              border: '1px solid'
+                            }}
+                          >
+                            {session.detected_state}
+                          </span>
+                        )}
+                        {session.target_state && (
+                          <>
+                            <span className="text-green-600">→</span>
+                            <span
+                              className="text-xs"
+                              style={{ color: STATE_INFO[session.target_state]?.color }}
+                            >
+                              {session.target_state}
+                            </span>
+                          </>
+                        )}
+                        {session.playlist_generated && (
+                          <span className="text-cyan-400 text-xs">playlist</span>
+                        )}
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

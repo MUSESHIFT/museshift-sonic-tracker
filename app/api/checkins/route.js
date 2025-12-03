@@ -1,0 +1,96 @@
+import { NextResponse } from 'next/server';
+
+const AIRTABLE_BASE_ID = 'appscTrH12aw6CMQr';
+const AIRTABLE_TABLE_ID = 'tblrvW64Kt0rXyWd2';
+
+export async function GET(request) {
+  const airtableToken = process.env.AIRTABLE_API_KEY;
+
+  if (!airtableToken) {
+    return NextResponse.json(
+      { error: 'Airtable not configured' },
+      { status: 500 }
+    );
+  }
+
+  try {
+    const { searchParams } = new URL(request.url);
+    const limit = searchParams.get('limit') || '20';
+    const phone = searchParams.get('phone');
+
+    // Build filter formula - get recent records, optionally filtered by phone
+    let filterFormula = '';
+    if (phone) {
+      filterFormula = `&filterByFormula={from_number}="${phone}"`;
+    }
+
+    const url = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${AIRTABLE_TABLE_ID}?maxRecords=${limit}&sort[0][field]=timestamp&sort[0][direction]=desc${filterFormula}`;
+
+    const response = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${airtableToken}`,
+        'Content-Type': 'application/json',
+      },
+      cache: 'no-store',
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      console.error('Airtable error:', error);
+      return NextResponse.json(
+        { error: 'Failed to fetch from Airtable' },
+        { status: response.status }
+      );
+    }
+
+    const data = await response.json();
+
+    // Transform records for the frontend
+    // Note: detected_state and detected_emotion are linked record IDs in Airtable
+    // Use pattern/tags_raw for actual state name, and extract emotion from Summary (AI)
+    const checkins = data.records.map(record => {
+      const fields = record.fields;
+
+      // Get state from pattern or tags_raw (these contain the actual state name)
+      const detectedState = fields.pattern || fields.tags_raw || null;
+
+      // Get emotion from Summary (AI) object if available, or parse from AI summary text
+      let emotion = null;
+      if (fields['Summary (AI)']?.value) {
+        const summaryMatch = fields['Summary (AI)'].value.match(/Detected emotion is '([^']+)'/i);
+        if (summaryMatch) {
+          emotion = summaryMatch[1];
+        }
+      }
+
+      return {
+        id: record.id,
+        timestamp: fields.timestamp,
+        feeling: fields.i_feel_text,
+        source: fields.source,
+        detectedState: detectedState,
+        emotion: emotion,
+        emotionIntensity: fields.emotion_intensity,
+        stateMode: fields.state_mode,
+        statePhase: fields.state_phase,
+        archetype: fields.archetype,
+        direction: fields.direction,
+        confidence: fields.detection_confidence,
+        glyph: fields.glyph,
+        summary: fields.summary,
+        intervention: fields.suggested_prompt, // Use suggested_prompt as it's text, not linked record
+        suggestedPrompt: fields.suggested_prompt,
+        aiSummary: fields['Summary (AI)']?.value || null,
+        aiIntervention: fields['Suggested Micro-Intervention (AI)']?.value || null,
+      };
+    });
+
+    return NextResponse.json({ checkins });
+  } catch (error) {
+    console.error('Error fetching checkins:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}

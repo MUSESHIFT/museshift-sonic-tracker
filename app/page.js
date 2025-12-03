@@ -404,6 +404,12 @@ export default function MuseShift() {
             >
               view dashboard →
             </Link>
+            <Link
+              href="/nca"
+              className="text-purple-400 hover:text-purple-300 underline"
+            >
+              NCA toolkit →
+            </Link>
           </div>
         </div>
 
