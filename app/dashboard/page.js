@@ -133,11 +133,30 @@ export default function Dashboard() {
     const mostCommon = Object.entries(stateCounts)
       .sort((a, b) => b[1] - a[1])[0];
 
+    // Most common emotion
+    const mostCommonEmotion = Object.entries(emotionCounts)
+      .sort((a, b) => b[1] - a[1])[0];
+
+    // Source breakdown
+    const sourceCounts = {};
+    filtered.forEach(s => {
+      const src = s.source || 'unknown';
+      sourceCounts[src] = (sourceCounts[src] || 0) + 1;
+    });
+
+    // Peak hour
+    const peakHour = Object.entries(hourCounts)
+      .sort((a, b) => b[1] - a[1])[0];
+
     setStats({
       totalCheckins: filtered.length,
       stateCounts,
       emotionCounts,
+      sourceCounts,
       mostCommonState: mostCommon ? mostCommon[0] : null,
+      dominantState: mostCommon ? mostCommon[0] : null,
+      dominantEmotion: mostCommonEmotion ? mostCommonEmotion[0] : null,
+      peakHour: peakHour ? parseInt(peakHour[0]) : null,
       hourCounts,
     });
   };
@@ -191,7 +210,7 @@ export default function Dashboard() {
                       color: getStateColor(airtableCheckins[0].detectedState)
                     }}
                   >
-                    ◐ latest: {airtableCheckins[0].detectedState}
+                    ◐ now: {airtableCheckins[0].detectedState}
                   </span>
                 )}
                 {stats?.dominantState && (
@@ -206,9 +225,29 @@ export default function Dashboard() {
                     ♡ vibe: {stats.dominantState}
                   </span>
                 )}
+                {stats?.dominantEmotion && (
+                  <span className="px-2 py-1 bg-pink-400/20 border border-pink-400/40 rounded-full text-xs text-pink-300">
+                    ꕤ feeling: {stats.dominantEmotion}
+                  </span>
+                )}
                 {airtableCheckins[0]?.timestamp && (
                   <span className="px-2 py-1 bg-purple-400/20 border border-purple-400/40 rounded-full text-xs text-purple-300">
                     ⏱ {formatTimeAgo(airtableCheckins[0].timestamp)}
+                  </span>
+                )}
+                {stats?.peakHour !== null && (
+                  <span className="px-2 py-1 bg-amber-400/20 border border-amber-400/40 rounded-full text-xs text-amber-300">
+                    ☀ peak: {formatHour(stats.peakHour)}
+                  </span>
+                )}
+                {stats?.sourceCounts?.personal > 0 && (
+                  <span className="px-2 py-1 bg-green-400/20 border border-green-400/40 rounded-full text-xs text-green-300">
+                    ✎ {stats.sourceCounts.personal} personal
+                  </span>
+                )}
+                {stats?.sourceCounts?.sms > 0 && (
+                  <span className="px-2 py-1 bg-blue-400/20 border border-blue-400/40 rounded-full text-xs text-blue-300">
+                    ✉ {stats.sourceCounts.sms} sms
                   </span>
                 )}
               </div>
