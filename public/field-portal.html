@@ -1,0 +1,1229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MUSESHIFT FIELD</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --bg: #0a0a0c;
+      --text-ghost: rgba(255,255,255,0.1);
+      --text-dim: rgba(255,255,255,0.22);
+      --text-present: rgba(255,255,255,0.55);
+      --current-color: #a78bfa;
+      --current-color-dim: rgba(167, 139, 250, 0.15);
+    }
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
+      background: var(--bg);
+      font-family: Courier New, Courier, monospace;
+      cursor: crosshair;
+    }
+    .field {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      overflow: hidden;
+    }
+    .thermal-field {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      z-index: 1;
+      opacity: 0.08;
+      background: var(--current-color);
+      mix-blend-mode: multiply;
+      transition: background 0.8s ease;
+    }
+    .scan-beam {
+      position: fixed;
+      left: 0;
+      width: 100%;
+      height: 3px;
+      background: var(--current-color);
+      pointer-events: none;
+      z-index: 50;
+      opacity: 0;
+    }
+    .scan-beam.active {
+      opacity: 0.8;
+      animation: scan-pass 3s linear forwards;
+    }
+    @keyframes scan-pass {
+      0% { top: 0; opacity: 0.9; }
+      100% { top: 100%; opacity: 0; }
+    }
+    .noise {
+      position: fixed;
+      top: -50%; left: -50%;
+      width: 200%; height: 200%;
+      pointer-events: none;
+      z-index: 1000;
+      opacity: 0.05;
+      background: repeating-linear-gradient(0deg, transparent 0px, rgba(255,255,255,0.03) 1px, transparent 2px);
+      animation: noise-shift 0.15s steps(2) infinite;
+    }
+    @keyframes noise-shift {
+      0% { transform: translate(0, 0); }
+      100% { transform: translate(-2%, 2%); }
+    }
+    .scanlines {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      z-index: 999;
+      background: repeating-linear-gradient(0deg, transparent 0px, transparent 2px, rgba(0,0,0,0.3) 2px, rgba(0,0,0,0.3) 4px);
+      opacity: 0.3;
+    }
+    .edge-glow {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      z-index: 3;
+      background: radial-gradient(ellipse at 50% 50%, transparent 50%, rgba(0,0,0,0.4) 100%);
+      opacity: 1;
+    }
+    .tracking-error {
+      position: fixed;
+      left: 0;
+      width: 100%;
+      height: 3px;
+      pointer-events: none;
+      z-index: 998;
+      opacity: 0;
+      background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.15) 10%, transparent 10.5%, transparent 45%, rgba(255,255,255,0.2) 45%, rgba(255,255,255,0.2) 55%, transparent 55.5%, transparent 90%, rgba(255,255,255,0.1) 90%, transparent 100%);
+    }
+    .tracking-error.active {
+      animation: track-glitch 0.15s steps(2) forwards;
+    }
+    @keyframes track-glitch {
+      0% { opacity: 0.8; transform: translateX(-5px); }
+      50% { transform: translateX(8px); }
+      100% { opacity: 0; transform: translateX(0); }
+    }
+    .luminance-clip {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      z-index: 997;
+      opacity: 0;
+      background: var(--current-color);
+      mix-blend-mode: overlay;
+      transition: opacity 0.1s ease;
+    }
+    .vignette {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      z-index: 995;
+      box-shadow: inset 0 0 150px rgba(0,0,0,0.7), inset 0 0 300px rgba(0,0,0,0.4);
+    }
+    .crt-warp {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      z-index: 1001;
+      background: radial-gradient(ellipse at center, transparent 0%, transparent 75%, rgba(0,0,0,0.5) 100%);
+    }
+    .tear {
+      position: fixed;
+      left: 0;
+      width: 100%;
+      height: 2px;
+      pointer-events: none;
+      z-index: 1002;
+      opacity: 0;
+      background: linear-gradient(90deg, transparent 0%, var(--current-color) 20%, #fff 50%, var(--current-color) 80%, transparent 100%);
+    }
+    .tear.active { animation: tear-rip 0.5s ease-out forwards; }
+    @keyframes tear-rip {
+      0% { top: 35%; opacity: 0; height: 2px; }
+      20% { opacity: 0.9; height: 3px; }
+      100% { top: 65%; opacity: 0; height: 1px; }
+    }
+    .crosshair {
+      position: fixed;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      z-index: 10;
+      opacity: 0.08;
+    }
+    .crosshair::before, .crosshair::after {
+      content: "";
+      position: absolute;
+      background: rgba(255,255,255,0.3);
+    }
+    .crosshair::before { width: 1px; height: 40px; left: 50%; transform: translateX(-50%); }
+    .crosshair::after { width: 40px; height: 1px; top: 50%; transform: translateY(-50%); }
+    .corner {
+      position: fixed;
+      width: 24px; height: 24px;
+      pointer-events: none;
+      z-index: 30;
+      opacity: 0;
+      transition: opacity 0.3s ease, border-color 0.8s ease;
+    }
+    .corner.show { opacity: 0.7; }
+    .corner.active { opacity: 1; }
+    .corner-tl { top: 12px; left: 12px; border-top: 2px solid; border-left: 2px solid; }
+    .corner-tr { top: 12px; right: 12px; border-top: 2px solid; border-right: 2px solid; }
+    .corner-bl { bottom: 12px; left: 12px; border-bottom: 2px solid; border-left: 2px solid; }
+    .corner-br { bottom: 12px; right: 12px; border-bottom: 2px solid; border-right: 2px solid; }
+    .residue {
+      position: fixed;
+      font-size: 0.5rem;
+      color: var(--current-color);
+      pointer-events: none;
+      z-index: 25;
+      animation: residue-fade 2.5s ease-out forwards;
+    }
+    @keyframes residue-fade {
+      0% { opacity: 0.4; filter: blur(0); }
+      70% { opacity: 0.15; }
+      100% { opacity: 0; filter: blur(1px); }
+    }
+    .whisper-box {
+      position: fixed;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      z-index: 100;
+      max-width: 85%;
+      width: 600px;
+    }
+    .whisper {
+      font-family: Courier New, Courier, monospace;
+      font-size: clamp(1rem, 2.5vw, 1.4rem);
+      font-weight: 400;
+      line-height: 2;
+      letter-spacing: 0.06em;
+      color: var(--text-present);
+      min-height: 2.5em;
+    }
+    .whisper .word { display: inline-block; white-space: nowrap; }
+    .whisper .char { display: inline-block; }
+    .whisper .char.glitching { color: var(--current-color); text-shadow: 2px 0 var(--current-color), -2px 0 #ff0040; }
+    .whisper .char.corrupt { color: #ff2d5e; transform: translateX(2px); }
+    .whisper .char.noise { opacity: 0.2; }
+    .dwell-hint {
+      font-size: 0.7rem;
+      letter-spacing: 0.12em;
+      color: var(--current-color);
+      margin-top: 2rem;
+      opacity: 0;
+      transition: color 0.8s ease;
+    }
+    .dwell-hint.show { animation: hint-pulse 1.5s ease-in-out infinite; }
+    @keyframes hint-pulse {
+      0%, 100% { opacity: 0.5; }
+      50% { opacity: 0.9; }
+    }
+    .dwell-bar {
+      width: 60px; height: 2px;
+      background: rgba(255,255,255,0.06);
+      margin: 1rem auto 0;
+      overflow: hidden;
+      opacity: 0;
+    }
+    .dwell-bar.show { opacity: 1; }
+    .dwell-fill {
+      height: 100%; width: 0%;
+      background: var(--current-color);
+      transition: width 0.05s linear, background 0.8s ease;
+    }
+    .state-tag {
+      font-size: 0.65rem;
+      letter-spacing: 0.25em;
+      margin-top: 1.2rem;
+      opacity: 0;
+      text-transform: uppercase;
+      color: var(--current-color);
+      transition: color 0.8s ease;
+    }
+    .state-tag.show { opacity: 0.75; }
+    .data {
+      position: fixed;
+      top: 15px; left: 15px;
+      font-size: 0.45rem;
+      letter-spacing: 0.1em;
+      opacity: 0;
+      z-index: 50;
+      color: var(--text-dim);
+      font-variant-numeric: tabular-nums;
+      transition: opacity 0.5s ease;
+    }
+    .data.show { opacity: 0.4; }
+    .data span { display: block; margin-bottom: 0.3em; }
+    .depth-meter {
+      position: fixed;
+      right: 15px; top: 50%;
+      transform: translateY(-50%);
+      width: 2px; height: 50px;
+      background: rgba(255,255,255,0.04);
+      z-index: 60;
+    }
+    .depth-fill {
+      position: absolute;
+      bottom: 0; left: 0;
+      width: 100%; height: 0%;
+      background: var(--current-color);
+      transition: height 0.5s ease, background 0.8s ease;
+    }
+    .zone-hint {
+      position: fixed;
+      font-size: 0.45rem;
+      letter-spacing: 0.15em;
+      opacity: 0;
+      text-transform: uppercase;
+      z-index: 45;
+      color: var(--current-color);
+      transition: opacity 0.3s ease, color 0.8s ease;
+    }
+    .zone-hint.show { opacity: 0.5; }
+    .zh-left { left: 10px; top: 50%; transform: translateY(-50%) rotate(-90deg); transform-origin: left center; }
+    .zh-right { right: 10px; top: 50%; transform: translateY(-50%) rotate(90deg); transform-origin: right center; }
+    .zh-top { top: 10px; left: 50%; transform: translateX(-50%); }
+    .zh-bottom { bottom: 10px; left: 50%; transform: translateX(-50%); }
+    .trace-msg {
+      position: fixed;
+      font-size: 0.5rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      pointer-events: none;
+      z-index: 200;
+      opacity: 0;
+      color: var(--current-color);
+    }
+    .trace-msg.active { animation: trace-fade 1.5s ease-out forwards; }
+    @keyframes trace-fade {
+      0% { opacity: 0; transform: translateY(0); }
+      20% { opacity: 0.8; }
+      100% { opacity: 0; transform: translateY(-20px); }
+    }
+    .signal-bar {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 120px;
+      height: 30px;
+      pointer-events: none;
+      z-index: 60;
+      opacity: 0;
+      transition: opacity 0.5s ease;
+    }
+    .signal-bar.show { opacity: 0.35; }
+    .signal-bar svg { width: 100%; height: 100%; }
+    .signal-line {
+      fill: none;
+      stroke: var(--current-color);
+      stroke-width: 1.5;
+      transition: stroke 0.8s ease;
+    }
+    .coords {
+      position: fixed;
+      bottom: 15px; right: 15px;
+      font-size: 0.4rem;
+      letter-spacing: 0.1em;
+      color: var(--current-color);
+      opacity: 0.25;
+      z-index: 40;
+      font-variant-numeric: tabular-nums;
+    }
+    .nav {
+      position: fixed;
+      bottom: 40px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 4rem;
+      z-index: 80;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.8s ease;
+    }
+    .nav.show {
+      opacity: 1;
+      pointer-events: auto;
+      animation: nav-arrive 0.6s ease-out;
+    }
+    @keyframes nav-arrive {
+      0% { opacity: 0; transform: translateX(-50%) translateY(10px); }
+      100% { opacity: 1; transform: translateX(-50%) translateY(0); }
+    }
+    .nav a {
+      font-size: 1rem;
+      letter-spacing: 0.12em;
+      text-transform: lowercase;
+      color: rgba(255,255,255,0.5);
+      text-decoration: none;
+      transition: color 0.3s ease;
+    }
+    .nav a:hover { color: var(--current-color); }
+
+    /* ═══ STATE INPUT STYLES ═══ */
+    .state-input-container {
+      margin-top: 2rem;
+      opacity: 0;
+      transition: opacity 0.5s ease;
+      pointer-events: none;
+    }
+    .state-input-container.show {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .state-input {
+      width: 100%;
+      max-width: 400px;
+      padding: 0.8rem 1rem;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 0;
+      color: var(--text-present);
+      font-family: Courier New, Courier, monospace;
+      font-size: 0.9rem;
+      letter-spacing: 0.05em;
+      outline: none;
+      transition: border-color 0.3s ease, background 0.3s ease;
+    }
+    .state-input::placeholder {
+      color: var(--text-dim);
+      font-style: italic;
+    }
+    .state-input:focus {
+      border-color: var(--current-color);
+      background: rgba(255,255,255,0.05);
+    }
+    .input-hint {
+      font-size: 0.6rem;
+      letter-spacing: 0.1em;
+      color: var(--text-dim);
+      margin-top: 0.8rem;
+      opacity: 0.6;
+    }
+
+    /* ═══ PROTOCOL DISPLAY STYLES ═══ */
+    .protocol-container {
+      margin-top: 1.5rem;
+      text-align: left;
+      opacity: 0;
+      transition: opacity 0.5s ease;
+      max-height: 0;
+      overflow: hidden;
+    }
+    .protocol-container.show {
+      opacity: 1;
+      max-height: 1000px;
+    }
+    .protocol-name {
+      font-size: 1.1rem;
+      letter-spacing: 0.15em;
+      color: var(--current-color);
+      margin-bottom: 0.8rem;
+      text-transform: lowercase;
+    }
+    .protocol-purpose {
+      font-size: 0.75rem;
+      color: var(--text-dim);
+      margin-bottom: 1rem;
+      line-height: 1.6;
+    }
+    .protocol-process {
+      font-size: 0.8rem;
+      color: var(--text-present);
+      line-height: 1.8;
+      margin-bottom: 1rem;
+      white-space: pre-wrap;
+    }
+    .protocol-shift {
+      font-size: 0.7rem;
+      color: var(--current-color);
+      opacity: 0.7;
+      margin-bottom: 0.5rem;
+    }
+    .protocol-why {
+      font-size: 0.65rem;
+      color: var(--text-dim);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      cursor: pointer;
+    }
+    .protocol-why.show {
+      opacity: 0.6;
+    }
+    .essence-text {
+      font-size: 0.75rem;
+      color: var(--text-dim);
+      margin-top: 0.5rem;
+      opacity: 0;
+      transition: opacity 0.5s ease;
+    }
+    .essence-text.show {
+      opacity: 0.7;
+    }
+
+    /* ═══ RESET BUTTON ═══ */
+    .reset-btn {
+      margin-top: 2rem;
+      padding: 0.6rem 1.5rem;
+      background: transparent;
+      border: 1px solid var(--current-color);
+      color: var(--current-color);
+      font-family: Courier New, Courier, monospace;
+      font-size: 0.7rem;
+      letter-spacing: 0.15em;
+      text-transform: lowercase;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.5s ease, background 0.3s ease;
+      pointer-events: none;
+    }
+    .reset-btn.show {
+      opacity: 0.7;
+      pointer-events: auto;
+    }
+    .reset-btn:hover {
+      background: var(--current-color-dim);
+      opacity: 1;
+    }
+
+    @media (max-width: 600px) {
+      .whisper { font-size: 0.95rem; }
+      .depth-meter, .data, .zone-hint, .coords, .signal-bar { display: none; }
+      .state-input { font-size: 16px; }
+      .nav { gap: 2rem; }
+      .nav a { font-size: 0.85rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="field" id="field">
+    <div class="thermal-field" id="thermalField"></div>
+    <div class="edge-glow" id="edgeGlow"></div>
+    <div class="scan-beam" id="scanBeam"></div>
+    <div class="luminance-clip" id="luminanceClip"></div>
+    <div class="noise" id="noise"></div>
+    <div class="scanlines" id="scanlines"></div>
+    <div class="tracking-error" id="trackingError"></div>
+    <div class="vignette"></div>
+    <div class="crt-warp"></div>
+    <div class="tear" id="tear"></div>
+    <div class="crosshair"></div>
+    <div class="corner corner-tl" id="cTL"></div>
+    <div class="corner corner-tr" id="cTR"></div>
+    <div class="corner corner-bl" id="cBL"></div>
+    <div class="corner corner-br" id="cBR"></div>
+    <div class="whisper-box">
+      <div class="whisper" id="whisper"></div>
+      <div class="essence-text" id="essenceText"></div>
+      <div class="dwell-hint" id="dwellHint">stay to receive</div>
+      <div class="dwell-bar" id="dwellBar">
+        <div class="dwell-fill" id="dwellFill"></div>
+      </div>
+      <div class="state-tag" id="stateTag"></div>
+
+      <!-- State Input -->
+      <div class="state-input-container" id="inputContainer">
+        <input type="text" class="state-input" id="stateInput" placeholder="describe the signal..." autocomplete="off">
+        <div class="input-hint">press enter to transmit</div>
+      </div>
+
+      <!-- Protocol Display -->
+      <div class="protocol-container" id="protocolContainer">
+        <div class="protocol-name" id="protocolName"></div>
+        <div class="protocol-purpose" id="protocolPurpose"></div>
+        <div class="protocol-process" id="protocolProcess"></div>
+        <div class="protocol-shift" id="protocolShift"></div>
+        <div class="protocol-why" id="protocolWhy"></div>
+      </div>
+
+      <!-- Reset Button -->
+      <button class="reset-btn" id="resetBtn">begin another</button>
+    </div>
+    <div class="data" id="data">
+      <span id="dPhase">PHS: --</span>
+      <span id="dDepth">DPT: 01</span>
+      <span id="dZone">ZNE: CNTR</span>
+    </div>
+    <div class="depth-meter"><div class="depth-fill" id="depthFill"></div></div>
+    <div class="signal-bar" id="signalBar">
+      <svg viewBox="0 0 120 30" preserveAspectRatio="none">
+        <polyline class="signal-line" points="0,15 10,15 15,5 20,25 25,10 30,20 35,15 45,15 50,8 55,22 60,15 70,15 75,5 80,25 85,12 90,18 95,15 105,15 110,10 115,20 120,15"/>
+      </svg>
+    </div>
+    <div class="zone-hint zh-left" id="zhLeft">release</div>
+    <div class="zone-hint zh-right" id="zhRight">move</div>
+    <div class="zone-hint zh-top" id="zhTop">notice</div>
+    <div class="zone-hint zh-bottom" id="zhBottom">ground</div>
+    <div class="coords" id="coords">X:0.50 Y:0.50</div>
+    <nav class="nav" id="nav">
+      <a href="/about">about</a>
+      <a href="/services">services</a>
+      <a href="/book">book</a>
+    </nav>
+  </div>
+  <script>
+    // ═══════════════════════════════════════════════════════════════
+    // MUSESHIFT FIELD PORTAL - PUBLIC STATE READER
+    // ═══════════════════════════════════════════════════════════════
+
+    var WEBHOOK_URL = "https://n8n.museshift.com/webhook/public-state";
+
+    var GLITCH_CHARS = "#%&@*!?=+~";
+    var NOISE_CHARS = ".:;|";
+    var RESIDUE_CHARS = [".", ":", "*", "+", "x", "-", "~"];
+
+    var WHISPERS = {
+      center: "something is listening.",
+      head: "notice what loops.",
+      chest: "open. receiving.",
+      gut: "ground floor. resting.",
+      left: "release something held.",
+      right: "move without deciding."
+    };
+
+    var CORNERS = {
+      tl: { name: "SLIPCORE", whisper: "scattered energy seeking anchor.", micro: "discharge. find ground.", color: "#69f0ae" },
+      tr: { name: "VOLTAGE", whisper: "you are broadcasting.", micro: "capture now. harvest output.", color: "#ffee58" },
+      bl: { name: "SLICKVEIL", whisper: "the stillness that freezes.", micro: "smallest movement. wake the body.", color: "#4fc3f7" },
+      br: { name: "FRAYMARK", whisper: "the edge is speaking.", micro: "name it. externalize. release.", color: "#ff5252" },
+      chest: { name: "CLEARMARK", whisper: "signal received.", micro: "witness. hold. allow.", color: "#ce93d8" },
+      gut: { name: "LOWLINE", whisper: "below the signal.", micro: "rest. stop. receive.", color: "#78909c" }
+    };
+
+    var STATE_COLORS = {
+      SLICKVEIL: "#4fc3f7",
+      SLIPCORE: "#69f0ae",
+      FRAYMARK: "#ff5252",
+      VOLTAGE: "#ffee58",
+      CLEARMARK: "#ce93d8",
+      LOWLINE: "#78909c"
+    };
+
+    var STATE_CORNERS = {
+      SLIPCORE: "tl",
+      VOLTAGE: "tr",
+      SLICKVEIL: "bl",
+      FRAYMARK: "br",
+      CLEARMARK: "chest",
+      LOWLINE: "gut"
+    };
+
+    var COLORS = {
+      head: { base: "#4fc3f7" },
+      chest: { base: "#ce93d8" },
+      gut: { base: "#78909c" },
+      left: { base: "#4fc3f7" },
+      right: { base: "#ff5252" },
+      center: { base: "#a78bfa" }
+    };
+
+    var state = {
+      initialized: false,
+      depth: 1,
+      phase: "--",
+      zone: "center",
+      currentColor: "#a78bfa",
+      mouseX: 0.5,
+      mouseY: 0.5,
+      lastMouseX: 0.5,
+      lastMouseY: 0.5,
+      velocity: 0,
+      intensity: 0,
+      dwellStart: null,
+      dwellDuration: 1500,
+      dwellTriggered: false,
+      inCornerMicro: false,
+      lastResidueTime: 0,
+      residueInterval: 200,
+      residueCount: 0,
+      maxResidue: 12,
+      scanInterval: null,
+      hasInteracted: false,
+      inputShown: false,
+      isReading: false,
+      readingComplete: false
+    };
+
+    var textAnimator;
+
+    // ═══ NAVIGATION ═══
+    function showNav() {
+      if (!state.hasInteracted) {
+        state.hasInteracted = true;
+        document.getElementById("nav").classList.add("show");
+      }
+    }
+
+    // ═══ INTENSITY TRACKING ═══
+    function updateIntensity() {
+      var dx = state.mouseX - state.lastMouseX;
+      var dy = state.mouseY - state.lastMouseY;
+      var speed = Math.sqrt(dx*dx + dy*dy);
+      state.lastMouseX = state.mouseX;
+      state.lastMouseY = state.mouseY;
+      state.velocity = state.velocity * 0.8 + speed * 0.2;
+      var targetIntensity = Math.min(1, state.velocity * 18);
+      state.intensity = state.intensity * 0.9 + targetIntensity * 0.1;
+
+      var thermal = document.getElementById("thermalField");
+      var noise = document.getElementById("noise");
+      var scanlines = document.getElementById("scanlines");
+      thermal.style.opacity = 0.08 + (state.intensity * 0.32);
+      noise.style.opacity = 0.04 + (state.intensity * 0.16);
+      scanlines.style.opacity = 0.25 + (state.intensity * 0.5);
+
+      var corners = document.querySelectorAll(".corner.show");
+      for (var i = 0; i < corners.length; i++) {
+        corners[i].style.opacity = 0.5 + (state.intensity * 0.5);
+      }
+
+      if (state.velocity > 0.04 && Math.random() < 0.15) {
+        triggerTrackingError();
+      }
+      if (state.velocity > 0.08 && Math.random() < 0.05) {
+        triggerLuminanceClip();
+      }
+
+      requestAnimationFrame(updateIntensity);
+    }
+
+    // ═══ TEXT ANIMATOR ═══
+    function TextAnimator(el) {
+      this.el = el;
+      this.queue = [];
+      this.isAnimating = false;
+    }
+
+    TextAnimator.prototype.wrapChars = function(t) {
+      var words = t.split(" ");
+      var result = [];
+      for (var w = 0; w < words.length; w++) {
+        var word = words[w];
+        var chars = "";
+        for (var c = 0; c < word.length; c++) {
+          chars += "<span class=\"char\">" + word[c] + "</span>";
+        }
+        result.push("<span class=\"word\">" + chars + "</span>");
+      }
+      return result.join("<span class=\"char\">&nbsp;</span>");
+    };
+
+    TextAnimator.prototype.animate = function(newText, style) {
+      var self = this;
+      return new Promise(function(resolve) {
+        if (style === "glitch") {
+          var glitchText = "";
+          for (var i = 0; i < newText.length; i++) {
+            glitchText += GLITCH_CHARS[Math.floor(Math.random() * GLITCH_CHARS.length)];
+          }
+          self.el.innerHTML = self.wrapChars(glitchText);
+          var chars = self.el.querySelectorAll(".char");
+          for (var j = 0; j < chars.length; j++) {
+            chars[j].classList.add("glitching");
+          }
+          var order = [];
+          for (var k = 0; k < newText.length; k++) order.push(k);
+          order.sort(function() { return Math.random() - 0.5; });
+          var idx = 0;
+          var interval = setInterval(function() {
+            if (idx >= order.length) {
+              clearInterval(interval);
+              for (var m = 0; m < chars.length; m++) {
+                chars[m].classList.remove("glitching");
+              }
+              resolve(true);
+              return;
+            }
+            var pos = order[idx];
+            if (chars[pos]) {
+              chars[pos].textContent = newText[pos] === " " ? "\u00A0" : newText[pos];
+              chars[pos].classList.remove("glitching");
+            }
+            idx++;
+          }, 40);
+        } else {
+          self.el.innerHTML = self.wrapChars(newText);
+          resolve(true);
+        }
+      });
+    };
+
+    TextAnimator.prototype.wait = function(ms) {
+      return new Promise(function(r) { setTimeout(r, ms); });
+    };
+
+    // ═══ VISUAL EFFECTS ═══
+    function setColor(color) {
+      state.currentColor = color;
+      document.documentElement.style.setProperty("--current-color", color);
+      var r = parseInt(color.slice(1,3), 16);
+      var g = parseInt(color.slice(3,5), 16);
+      var b = parseInt(color.slice(5,7), 16);
+      document.documentElement.style.setProperty("--current-color-dim", "rgba(" + r + "," + g + "," + b + ",0.12)");
+    }
+
+    function triggerLuminanceClip() {
+      var clip = document.getElementById("luminanceClip");
+      clip.style.opacity = "0.25";
+      setTimeout(function() { clip.style.opacity = "0"; }, 60);
+    }
+
+    function triggerTrackingError() {
+      var err = document.getElementById("trackingError");
+      err.style.top = (Math.random() * 100) + "%";
+      err.classList.remove("active");
+      void err.offsetWidth;
+      err.classList.add("active");
+    }
+
+    function triggerScan() {
+      var beam = document.getElementById("scanBeam");
+      beam.classList.remove("active");
+      void beam.offsetWidth;
+      beam.classList.add("active");
+    }
+
+    function spawnResidue(x, y) {
+      var now = Date.now();
+      if (now - state.lastResidueTime < state.residueInterval) return;
+      if (state.residueCount >= state.maxResidue) return;
+      state.lastResidueTime = now;
+      state.residueCount++;
+      var r = document.createElement("div");
+      r.className = "residue";
+      r.textContent = RESIDUE_CHARS[Math.floor(Math.random() * RESIDUE_CHARS.length)];
+      r.style.left = x + "px";
+      r.style.top = y + "px";
+      document.getElementById("field").appendChild(r);
+      setTimeout(function() { r.remove(); state.residueCount--; }, 2500);
+    }
+
+    function logTrace(x, y) {
+      var tear = document.getElementById("tear");
+      tear.classList.remove("active");
+      void tear.offsetWidth;
+      tear.classList.add("active");
+      triggerLuminanceClip();
+      triggerTrackingError();
+      showNav();
+
+      var msg = document.createElement("div");
+      msg.className = "trace-msg";
+      msg.textContent = "LOGGED";
+      msg.style.left = x + "px";
+      msg.style.top = y + "px";
+      document.getElementById("field").appendChild(msg);
+      requestAnimationFrame(function() { msg.classList.add("active"); });
+      setTimeout(function() { msg.remove(); }, 1500);
+    }
+
+    // ═══ INPUT HANDLING ═══
+    function showInput() {
+      if (state.inputShown || state.isReading || state.readingComplete) return;
+      state.inputShown = true;
+
+      document.getElementById("dwellHint").classList.remove("show");
+      document.getElementById("dwellBar").classList.remove("show");
+
+      textAnimator.animate("describe the signal.", "glitch").then(function() {
+        document.getElementById("inputContainer").classList.add("show");
+        document.getElementById("stateInput").focus();
+      });
+    }
+
+    function handleSubmit() {
+      var input = document.getElementById("stateInput");
+      var text = input.value.trim();
+      if (!text || state.isReading) return;
+
+      state.isReading = true;
+      document.getElementById("inputContainer").classList.remove("show");
+
+      // Trigger reading effects
+      triggerScan();
+      for (var i = 0; i < 5; i++) {
+        setTimeout(triggerTrackingError, i * 200);
+      }
+
+      textAnimator.animate("reading...", "glitch");
+
+      // Increase visual intensity during read
+      var noise = document.getElementById("noise");
+      var scanlines = document.getElementById("scanlines");
+      noise.style.opacity = "0.15";
+      scanlines.style.opacity = "0.6";
+
+      // Make API call
+      fetch(WEBHOOK_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: text })
+      })
+      .then(function(res) { return res.json(); })
+      .then(function(data) {
+        handleReadingResponse(data);
+      })
+      .catch(function(err) {
+        console.error("Reading error:", err);
+        textAnimator.animate("signal lost. retry.", "glitch");
+        state.isReading = false;
+        setTimeout(function() {
+          document.getElementById("inputContainer").classList.add("show");
+        }, 2000);
+      });
+    }
+
+    function handleReadingResponse(data) {
+      state.isReading = false;
+      state.readingComplete = true;
+
+      // Reset visual intensity
+      var noise = document.getElementById("noise");
+      var scanlines = document.getElementById("scanlines");
+      noise.style.opacity = "0.05";
+      scanlines.style.opacity = "0.3";
+
+      if (data.message) {
+        // Non-emotional input
+        textAnimator.animate(data.message, "glitch");
+        setTimeout(function() {
+          state.readingComplete = false;
+          state.inputShown = false;
+          showInput();
+        }, 4000);
+        return;
+      }
+
+      if (data.error) {
+        textAnimator.animate("system error. retry.", "glitch");
+        setTimeout(function() {
+          state.readingComplete = false;
+          state.inputShown = false;
+          showInput();
+        }, 3000);
+        return;
+      }
+
+      // Successful reading - display state
+      displayReading(data);
+    }
+
+    function displayReading(data) {
+      var stateColor = STATE_COLORS[data.state] || "#a78bfa";
+      setColor(stateColor);
+
+      // Activate appropriate corner
+      var cornerKey = STATE_CORNERS[data.state];
+      if (cornerKey) {
+        var cornerIds = { tl: "cTL", tr: "cTR", bl: "cBL", br: "cBR" };
+        if (cornerIds[cornerKey]) {
+          document.getElementById(cornerIds[cornerKey]).classList.add("show", "active");
+        }
+      }
+
+      // Show state name
+      textAnimator.animate(data.state, "glitch").then(function() {
+        // Show phase
+        var stateTag = document.getElementById("stateTag");
+        stateTag.textContent = data.phase || "";
+        stateTag.classList.add("show");
+
+        // Show essence
+        setTimeout(function() {
+          var essenceEl = document.getElementById("essenceText");
+          essenceEl.textContent = data.essence || "";
+          essenceEl.classList.add("show");
+        }, 500);
+
+        // Show protocol after delay
+        setTimeout(function() {
+          displayProtocol(data.protocol);
+        }, 2000);
+      });
+
+      // Update data display
+      document.getElementById("data").classList.add("show");
+      document.getElementById("signalBar").classList.add("show");
+      document.getElementById("dPhase").textContent = "PHS: " + (data.phase || "--");
+      document.getElementById("dZone").textContent = "STE: " + (data.state || "--").substring(0, 4);
+
+      showNav();
+    }
+
+    function displayProtocol(protocol) {
+      if (!protocol) return;
+
+      var container = document.getElementById("protocolContainer");
+      var nameEl = document.getElementById("protocolName");
+      var purposeEl = document.getElementById("protocolPurpose");
+      var processEl = document.getElementById("protocolProcess");
+      var shiftEl = document.getElementById("protocolShift");
+      var whyEl = document.getElementById("protocolWhy");
+
+      // Animate protocol name
+      nameEl.textContent = "";
+      container.classList.add("show");
+
+      // Glitch reveal the protocol name
+      var name = protocol.name || "";
+      var glitchChars = "";
+      for (var i = 0; i < name.length; i++) {
+        glitchChars += GLITCH_CHARS[Math.floor(Math.random() * GLITCH_CHARS.length)];
+      }
+      nameEl.textContent = glitchChars;
+
+      var nameIdx = 0;
+      var nameInterval = setInterval(function() {
+        if (nameIdx >= name.length) {
+          clearInterval(nameInterval);
+          return;
+        }
+        var current = name.substring(0, nameIdx + 1) + glitchChars.substring(nameIdx + 1);
+        nameEl.textContent = current;
+        nameIdx++;
+      }, 50);
+
+      // Show purpose
+      setTimeout(function() {
+        purposeEl.textContent = protocol.purpose || "";
+      }, 800);
+
+      // Show process
+      setTimeout(function() {
+        processEl.textContent = protocol.process || "";
+      }, 1500);
+
+      // Show expected shift
+      setTimeout(function() {
+        shiftEl.textContent = "→ " + (protocol.expected_shift || "");
+      }, 2500);
+
+      // Show why it works (on hover/click)
+      setTimeout(function() {
+        whyEl.textContent = "[" + (protocol.why_it_works || "") + "]";
+        whyEl.classList.add("show");
+
+        // Show reset button
+        document.getElementById("resetBtn").classList.add("show");
+      }, 3500);
+    }
+
+    function resetReading() {
+      state.readingComplete = false;
+      state.inputShown = false;
+
+      // Hide protocol
+      document.getElementById("protocolContainer").classList.remove("show");
+      document.getElementById("resetBtn").classList.remove("show");
+      document.getElementById("stateTag").classList.remove("show");
+      document.getElementById("essenceText").classList.remove("show");
+
+      // Reset corners
+      document.querySelectorAll(".corner").forEach(function(c) {
+        c.classList.remove("show", "active");
+      });
+
+      // Reset color
+      setColor("#a78bfa");
+
+      // Clear input
+      document.getElementById("stateInput").value = "";
+
+      // Show input again
+      textAnimator.animate("something is listening.", "glitch").then(function() {
+        setTimeout(showInput, 1500);
+      });
+    }
+
+    // ═══ ZONE HANDLING ═══
+    function onMove(e) {
+      if (!state.initialized) return;
+      var x = e.clientX / window.innerWidth;
+      var y = e.clientY / window.innerHeight;
+      state.mouseX = x;
+      state.mouseY = y;
+      document.getElementById("coords").textContent = "X:" + x.toFixed(2) + " Y:" + y.toFixed(2);
+      spawnResidue(e.clientX, e.clientY);
+      updateZone(x, y);
+      updateCorners(x, y);
+      showZoneHints(x, y);
+    }
+
+    function onTouch(e) {
+      if (!state.initialized || !e.touches.length) return;
+      var x = e.touches[0].clientX / window.innerWidth;
+      var y = e.touches[0].clientY / window.innerHeight;
+      updateZone(x, y);
+      updateCorners(x, y);
+    }
+
+    function updateZone(x, y) {
+      if (state.readingComplete) return; // Don't change zones during reading display
+
+      var newZone, newColor;
+      if (x < 0.18 && y < 0.18) { newZone = "tl"; newColor = CORNERS.tl.color; }
+      else if (x > 0.82 && y < 0.18) { newZone = "tr"; newColor = CORNERS.tr.color; }
+      else if (x < 0.18 && y > 0.82) { newZone = "bl"; newColor = CORNERS.bl.color; }
+      else if (x > 0.82 && y > 0.82) { newZone = "br"; newColor = CORNERS.br.color; }
+      else if (x < 0.12) { newZone = "left"; newColor = COLORS.left.base; }
+      else if (x > 0.88) { newZone = "right"; newColor = COLORS.right.base; }
+      else if (y < 0.25) { newZone = "head"; newColor = COLORS.head.base; }
+      else if (y >= 0.38 && y <= 0.55 && x >= 0.35 && x <= 0.65) { newZone = "chest"; newColor = CORNERS.chest.color; }
+      else if (y > 0.75) { newZone = "gut"; newColor = CORNERS.gut.color; }
+      else { newZone = "center"; newColor = COLORS.center.base; }
+
+      if (newColor !== state.currentColor) setColor(newColor);
+
+      if (newZone !== state.zone) {
+        state.zone = newZone;
+        state.dwellStart = Date.now();
+        state.dwellTriggered = false;
+        state.inCornerMicro = false;
+
+        if (!state.inputShown && !state.isReading && !state.readingComplete) {
+          document.getElementById("dwellHint").classList.add("show");
+          document.getElementById("dwellBar").classList.add("show");
+          document.getElementById("dwellFill").style.width = "0%";
+        }
+        document.getElementById("stateTag").classList.remove("show");
+        document.getElementById("dZone").textContent = "ZNE: " + newZone.toUpperCase().substring(0,4);
+        triggerLuminanceClip();
+      }
+
+      if (!state.dwellTriggered && state.dwellStart && !state.inputShown && !state.isReading && !state.readingComplete) {
+        var elapsed = Date.now() - state.dwellStart;
+        var progress = Math.min(1, elapsed / state.dwellDuration);
+        document.getElementById("dwellFill").style.width = (progress * 100) + "%";
+        if (progress >= 1) {
+          state.dwellTriggered = true;
+          document.getElementById("dwellHint").classList.remove("show");
+          document.getElementById("dwellBar").classList.remove("show");
+          showNav();
+          triggerZone();
+        }
+      }
+    }
+
+    function onClick(e) {
+      if (!state.initialized) return;
+      logTrace(e.clientX, e.clientY);
+
+      // Clicking also triggers input reveal
+      if (!state.inputShown && !state.isReading && !state.readingComplete) {
+        showInput();
+      }
+    }
+
+    function triggerZone() {
+      var tag = document.getElementById("stateTag");
+      if (CORNERS[state.zone]) {
+        tag.textContent = CORNERS[state.zone].name;
+        tag.classList.add("show");
+        textAnimator.animate(CORNERS[state.zone].whisper, "glitch").then(function() {
+          setTimeout(function() {
+            textAnimator.animate(CORNERS[state.zone].micro, "glitch").then(function() {
+              tag.classList.remove("show");
+              // After zone trigger, show input
+              setTimeout(showInput, 1500);
+            });
+          }, 2500);
+        });
+      } else {
+        textAnimator.animate(WHISPERS[state.zone] || WHISPERS.center, "glitch").then(function() {
+          tag.classList.remove("show");
+          // After zone trigger, show input
+          setTimeout(showInput, 1500);
+        });
+      }
+    }
+
+    function updateCorners(x, y) {
+      if (state.readingComplete) return;
+
+      var cTL = document.getElementById("cTL");
+      var cTR = document.getElementById("cTR");
+      var cBL = document.getElementById("cBL");
+      var cBR = document.getElementById("cBR");
+
+      if (x < 0.25 && y < 0.25) cTL.classList.add("show"); else cTL.classList.remove("show");
+      if (x > 0.75 && y < 0.25) cTR.classList.add("show"); else cTR.classList.remove("show");
+      if (x < 0.25 && y > 0.75) cBL.classList.add("show"); else cBL.classList.remove("show");
+      if (x > 0.75 && y > 0.75) cBR.classList.add("show"); else cBR.classList.remove("show");
+
+      if (x < 0.12 && y < 0.12) cTL.classList.add("active"); else cTL.classList.remove("active");
+      if (x > 0.88 && y < 0.12) cTR.classList.add("active"); else cTR.classList.remove("active");
+      if (x < 0.12 && y > 0.88) cBL.classList.add("active"); else cBL.classList.remove("active");
+      if (x > 0.88 && y > 0.88) cBR.classList.add("active"); else cBR.classList.remove("active");
+    }
+
+    function showZoneHints(x, y) {
+      if (state.readingComplete) return;
+
+      var zhL = document.getElementById("zhLeft");
+      var zhR = document.getElementById("zhRight");
+      var zhT = document.getElementById("zhTop");
+      var zhB = document.getElementById("zhBottom");
+
+      if (x < 0.12) zhL.classList.add("show"); else zhL.classList.remove("show");
+      if (x > 0.88) zhR.classList.add("show"); else zhR.classList.remove("show");
+      if (y < 0.1) zhT.classList.add("show"); else zhT.classList.remove("show");
+      if (y > 0.9) zhB.classList.add("show"); else zhB.classList.remove("show");
+    }
+
+    // ═══ INITIALIZATION ═══
+    function init() {
+      textAnimator = new TextAnimator(document.getElementById("whisper"));
+      textAnimator.animate(WHISPERS.center, "glitch");
+
+      // Set corner colors
+      document.getElementById("cTL").style.borderColor = CORNERS.tl.color;
+      document.getElementById("cTR").style.borderColor = CORNERS.tr.color;
+      document.getElementById("cBL").style.borderColor = CORNERS.bl.color;
+      document.getElementById("cBR").style.borderColor = CORNERS.br.color;
+
+      state.scanInterval = setInterval(function() {
+        if (Math.random() > 0.3) triggerScan();
+      }, 8000);
+
+      setTimeout(function() {
+        document.getElementById("dwellHint").classList.add("show");
+        updateIntensity();
+      }, 800);
+
+      document.addEventListener("mousemove", onMove);
+      document.addEventListener("touchmove", onTouch, { passive: true });
+      document.addEventListener("click", onClick);
+
+      // Input handling
+      var stateInput = document.getElementById("stateInput");
+      stateInput.addEventListener("keypress", function(e) {
+        if (e.key === "Enter") {
+          handleSubmit();
+        }
+      });
+
+      // Reset button
+      document.getElementById("resetBtn").addEventListener("click", resetReading);
+
+      // Protocol why hover
+      document.getElementById("protocolWhy").addEventListener("click", function() {
+        this.style.opacity = this.style.opacity === "1" ? "0.6" : "1";
+      });
+
+      state.initialized = true;
+    }
+
+    setTimeout(function() { if (!state.initialized) init(); }, 300);
+  </script>
+</body>
+</html>
